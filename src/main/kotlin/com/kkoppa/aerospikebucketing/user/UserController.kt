@@ -5,9 +5,12 @@ import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Controller
 import org.springframework.web.ErrorResponse
 import org.springframework.web.bind.annotation.ExceptionHandler
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseBody
 import org.springframework.web.bind.annotation.RestControllerAdvice
 
@@ -26,6 +29,26 @@ class UserController(val userRepository: UserRepository) {
                 ExternalId(id = it.externalId!!, type = ExternalIdType.valueOf(it.type!!))
             },
         )
+    }
+
+    @GetMapping
+    @ResponseBody
+    fun getUser(@RequestParam("goCustomerId") goCustomerId: String?, @RequestParam("payAccountId") payAccountId: String?): User {
+        if (!goCustomerId.isNullOrBlank()) {
+            return userRepository.getByGoCustomerId(goCustomerId).toUser()
+        }
+
+        if (!payAccountId.isNullOrBlank()) {
+            return userRepository.getByPayAccountId(payAccountId).toUser()
+        }
+
+        throw BadRequestException("goCustomerId or payAccountId is required")
+    }
+
+    @GetMapping("/{id}")
+    @ResponseBody
+    fun getUserById(@PathVariable("id") id: String): User {
+        return userRepository.getById(id).toUser()
     }
 }
 
@@ -56,4 +79,7 @@ class CustomExceptionHandler {
     }
 }
 
-class BadRequestException(message: String, cause: Throwable) : RuntimeException(message, cause)
+class BadRequestException : RuntimeException {
+    constructor(message: String) : super(message)
+    constructor(message: String, cause: Throwable) : super(message, cause)
+}

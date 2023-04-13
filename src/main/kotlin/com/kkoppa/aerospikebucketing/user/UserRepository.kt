@@ -17,7 +17,7 @@ import org.springframework.stereotype.Repository
 import java.util.*
 
 @Repository
-class UserRepository(val applicationContext: ApplicationContext, val aeroMapper: AeroMapper) {
+class UserRepository(private val applicationContext: ApplicationContext, private val aeroMapper: AeroMapper) {
     private val log = LoggerFactory.getLogger(UserRepository::class.java.name)
 
     fun save(user: User): UserDAO? {
@@ -75,6 +75,36 @@ class UserRepository(val applicationContext: ApplicationContext, val aeroMapper:
             applicationContext.getBean(AerospikeConfig.AEROSPIKE_DEFAULT_READ_POLICY_BEAN, Policy::class.java)
         return aeroMapper.read(readPolicy, UserDAO::class.java, id)
     }
+
+    fun getByGoCustomerId(goCustomerId: String): UserDAO {
+        val readPolicy = applicationContext.getBean(AerospikeConfig.AEROSPIKE_DEFAULT_READ_POLICY_BEAN, Policy::class.java)
+
+        val id = aeroMapper.read(
+            readPolicy,
+            ExternalIdMapDao::class.java,
+            "${ExternalIdType.GO_CUSTOMER_ID.name}:$goCustomerId",
+        ).id
+
+        return aeroMapper.read(readPolicy, UserDAO::class.java, id)
+    }
+
+    fun getByPayAccountId(payAccountId: String): UserDAO {
+        val readPolicy = applicationContext.getBean(AerospikeConfig.AEROSPIKE_DEFAULT_READ_POLICY_BEAN, Policy::class.java)
+
+        val id = aeroMapper.read(
+            readPolicy,
+            ExternalIdMapDao::class.java,
+            "${ExternalIdType.PAY_ACCOUNT_ID.name}:$payAccountId",
+        ).id
+
+        return aeroMapper.read(readPolicy, UserDAO::class.java, id)
+    }
+
+    fun getById(id: String): UserDAO {
+        val readPolicy = applicationContext.getBean(AerospikeConfig.AEROSPIKE_DEFAULT_READ_POLICY_BEAN, Policy::class.java)
+
+        return aeroMapper.read(readPolicy, UserDAO::class.java, id)
+    }
 }
 
 @AerospikeRecord(namespace = "test", set = "user", sendKey = true)
@@ -84,7 +114,21 @@ data class UserDAO(
     @AerospikeEmbed(type = AerospikeEmbed.EmbedType.LIST)
     val externalIds: List<ExternalIdDao>? = null,
     @ParamFrom("data") val data: String? = "",
-)
+) {
+    fun toUser(): User {
+        return User(
+            id = id,
+            externalIds = externalIds?.map { externalId ->
+                ExternalId(
+                    id = externalId.externalId!!,
+                    type = ExternalIdType.valueOf(externalId.type!!),
+                )
+            }
+                ?.toList(),
+            data = data,
+        )
+    }
+}
 
 open class ExternalIdDao(
     @ParamFrom("externalId") val externalId: String? = "",

@@ -10,6 +10,7 @@ import com.aerospike.mapper.annotations.AerospikeRecord
 import com.aerospike.mapper.annotations.ParamFrom
 import com.aerospike.mapper.tools.AeroMapper
 import jakarta.annotation.PreDestroy
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -35,13 +36,12 @@ class UserRepository(val applicationContext: ApplicationContext, val aeroMapper:
             data = user.data,
         )
 
-        val writePolicy = applicationContext.getBean(WritePolicy::class.java)
+        val writePolicy = applicationContext.getBean(AerospikeConfig.AEROSPIKE_DEFAULT_WRITE_POLICY_BEAN, WritePolicy::class.java)
 
-
-        aeroMapper.save(writePolicy, userDAO)
         userDAO.externalIds?.forEach { aeroMapper.save(writePolicy, it) }
+        aeroMapper.save(writePolicy, userDAO)
 
-        val readPolicy = applicationContext.getBean(Policy::class.java)
+        val readPolicy = applicationContext.getBean(AerospikeConfig.AEROSPIKE_DEFAULT_READ_POLICY_BEAN, Policy::class.java)
         return aeroMapper.read(readPolicy, UserDAO::class.java, id)
     }
 }
@@ -66,6 +66,11 @@ data class ExternalIdDAO(
 @Configuration
 class AerospikeConfig {
 
+    companion object {
+        const val AEROSPIKE_DEFAULT_WRITE_POLICY_BEAN = "aerospikeDefaultWritePolicy"
+        const val AEROSPIKE_DEFAULT_READ_POLICY_BEAN = "aerospikeDefaultReadPolicy"
+    }
+
     @Bean
     @Scope("prototype")
     fun aerospikeDefaultClientPolicy(): ClientPolicy {
@@ -84,14 +89,17 @@ class AerospikeConfig {
         return AeroMapper.Builder(aerospikeClient).build()
     }
 
+
     @Bean
     @Scope("prototype")
+    @Qualifier(AEROSPIKE_DEFAULT_WRITE_POLICY_BEAN)
     fun aerospikeDefaultWritePolicy(aerospikeClient: AerospikeClient): WritePolicy {
         return aerospikeClient.writePolicyDefault
     }
 
     @Bean
     @Scope("prototype")
+    @Qualifier(AEROSPIKE_DEFAULT_READ_POLICY_BEAN)
     fun aerospikeDefaultReadPolicy(aerospikeClient: AerospikeClient): Policy {
         return aerospikeClient.readPolicyDefault
     }
@@ -109,10 +117,12 @@ class AerospikeConfig {
 //
 //        return AerospikeReactorClient(aerospikeClient())
 //    }
+}
 
+@Configuration
+class AerospikeCleanup(val aerospikeClient: AerospikeClient) {
     @PreDestroy
-    fun cleanUp(aerospikeClient: AerospikeClient) {
+    fun cleanUp() {
         aerospikeClient.close()
-
     }
 }

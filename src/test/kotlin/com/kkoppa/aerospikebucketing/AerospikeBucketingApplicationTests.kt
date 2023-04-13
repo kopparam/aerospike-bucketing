@@ -9,5 +9,4 @@ class AerospikeBucketingApplicationTests {
     @Test
     fun contextLoads() {
     }
-
 }

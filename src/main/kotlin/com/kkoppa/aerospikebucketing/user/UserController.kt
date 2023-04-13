@@ -14,11 +14,13 @@ class UserController(val userRepository: UserRepository) {
     fun createUser(@RequestBody user: User): User {
         val userDAO = userRepository.save(user)
 
-
-        return User(data = userDAO?.data, id = userDAO?.id,
+        return User(
+            data = userDAO?.data,
+            id = userDAO?.id,
             externalIds = userDAO?.externalIds?.map {
                 ExternalId(id = it.externalId, type = ExternalIdType.valueOf(it.type))
-            })
+            },
+        )
     }
 }
 

@@ -23,7 +23,7 @@ class UserController(val userRepository: UserRepository) {
             data = userDAO?.data,
             id = userDAO?.id,
             externalIds = userDAO?.externalIds?.map {
-                ExternalId(id = it.externalId !!, type = ExternalIdType.valueOf(it.type !!))
+                ExternalId(id = it.externalId!!, type = ExternalIdType.valueOf(it.type!!))
             },
         )
     }

@@ -79,31 +79,33 @@ class UserRepository(private val applicationContext: ApplicationContext, private
     fun getByGoCustomerId(goCustomerId: String): UserDAO {
         val readPolicy = applicationContext.getBean(AerospikeConfig.AEROSPIKE_DEFAULT_READ_POLICY_BEAN, Policy::class.java)
 
-        val id = aeroMapper.read(
+        val externalIdMapDao = aeroMapper.read(
             readPolicy,
             ExternalIdMapDao::class.java,
             "${ExternalIdType.GO_CUSTOMER_ID.name}:$goCustomerId",
-        ).id
+        ) ?: throw NotFoundException("User not found with goCustomerId: $goCustomerId")
 
-        return aeroMapper.read(readPolicy, UserDAO::class.java, id)
+        return aeroMapper.read(readPolicy, UserDAO::class.java, externalIdMapDao.id)
     }
 
     fun getByPayAccountId(payAccountId: String): UserDAO {
         val readPolicy = applicationContext.getBean(AerospikeConfig.AEROSPIKE_DEFAULT_READ_POLICY_BEAN, Policy::class.java)
 
-        val id = aeroMapper.read(
+        val externalIdMapDao = aeroMapper.read(
             readPolicy,
             ExternalIdMapDao::class.java,
             "${ExternalIdType.PAY_ACCOUNT_ID.name}:$payAccountId",
-        ).id
+        ) ?: throw NotFoundException("User not found with payAccountId: $payAccountId")
 
-        return aeroMapper.read(readPolicy, UserDAO::class.java, id)
+        return aeroMapper.read(readPolicy, UserDAO::class.java, externalIdMapDao.id)
     }
 
     fun getById(id: String): UserDAO {
-        val readPolicy = applicationContext.getBean(AerospikeConfig.AEROSPIKE_DEFAULT_READ_POLICY_BEAN, Policy::class.java)
+        val readPolicy =
+            applicationContext.getBean(AerospikeConfig.AEROSPIKE_DEFAULT_READ_POLICY_BEAN, Policy::class.java)
 
         return aeroMapper.read(readPolicy, UserDAO::class.java, id)
+            ?: throw NotFoundException("User not found with id: $id")
     }
 }
 

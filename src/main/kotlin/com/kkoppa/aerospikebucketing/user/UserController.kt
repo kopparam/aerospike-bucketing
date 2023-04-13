@@ -77,9 +77,20 @@ class CustomExceptionHandler {
         val errorResponse = ErrorResponse.builder(ex, HttpStatus.BAD_REQUEST, ex.message ?: "").build()
         return ResponseEntity(errorResponse, HttpStatus.BAD_REQUEST)
     }
+
+    @ExceptionHandler(NotFoundException::class)
+    fun handleNotFoundException(ex: NotFoundException): ResponseEntity<ErrorResponse> {
+        val errorResponse = ErrorResponse.builder(ex, HttpStatus.NOT_FOUND, ex.message ?: "").build()
+        return ResponseEntity(errorResponse, HttpStatus.NOT_FOUND)
+    }
 }
 
 class BadRequestException : RuntimeException {
+    constructor(message: String) : super(message)
+    constructor(message: String, cause: Throwable) : super(message, cause)
+}
+
+class NotFoundException : RuntimeException {
     constructor(message: String) : super(message)
     constructor(message: String, cause: Throwable) : super(message, cause)
 }

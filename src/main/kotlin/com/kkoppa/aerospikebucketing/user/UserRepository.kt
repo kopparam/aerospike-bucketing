@@ -35,7 +35,11 @@ class UserRepository(private val applicationContext: ApplicationContext, private
         )
 
         val writePolicy =
-            applicationContext.getBean(AerospikeConfig.AEROSPIKE_DEFAULT_WRITE_POLICY_BEAN, WritePolicy::class.java)
+            applicationContext.getBean(
+                AerospikeConfig.AEROSPIKE_DEFAULT_WRITE_POLICY_BEAN,
+                WritePolicy::class.java,
+            )
+
         writePolicy.recordExistsAction = RecordExistsAction.CREATE_ONLY
 
         val saved = mutableListOf<ExternalIdMapDao>()
@@ -57,7 +61,10 @@ class UserRepository(private val applicationContext: ApplicationContext, private
             }
         } catch (e: AerospikeException) {
             val deletePolicy =
-                applicationContext.getBean(AerospikeConfig.AEROSPIKE_DEFAULT_WRITE_POLICY_BEAN, WritePolicy::class.java)
+                applicationContext.getBean(
+                    AerospikeConfig.AEROSPIKE_DEFAULT_WRITE_POLICY_BEAN,
+                    WritePolicy::class.java,
+                )
             deletePolicy.durableDelete = true
             saved.forEach { aeroMapper.delete(it) }
             throw BadRequestException(
@@ -77,7 +84,10 @@ class UserRepository(private val applicationContext: ApplicationContext, private
     }
 
     fun getByGoCustomerId(goCustomerId: String): UserDAO {
-        val readPolicy = applicationContext.getBean(AerospikeConfig.AEROSPIKE_DEFAULT_READ_POLICY_BEAN, Policy::class.java)
+        val readPolicy = applicationContext.getBean(
+            AerospikeConfig.AEROSPIKE_DEFAULT_READ_POLICY_BEAN,
+            Policy::class.java,
+        )
 
         val externalIdMapDao = aeroMapper.read(
             readPolicy,
@@ -89,7 +99,10 @@ class UserRepository(private val applicationContext: ApplicationContext, private
     }
 
     fun getByPayAccountId(payAccountId: String): UserDAO {
-        val readPolicy = applicationContext.getBean(AerospikeConfig.AEROSPIKE_DEFAULT_READ_POLICY_BEAN, Policy::class.java)
+        val readPolicy = applicationContext.getBean(
+            AerospikeConfig.AEROSPIKE_DEFAULT_READ_POLICY_BEAN,
+            Policy::class.java,
+        )
 
         val externalIdMapDao = aeroMapper.read(
             readPolicy,

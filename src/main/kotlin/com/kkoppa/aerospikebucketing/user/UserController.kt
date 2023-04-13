@@ -33,7 +33,10 @@ class UserController(val userRepository: UserRepository) {
 
     @GetMapping
     @ResponseBody
-    fun getUser(@RequestParam("goCustomerId") goCustomerId: String?, @RequestParam("payAccountId") payAccountId: String?): User {
+    fun getUser(
+        @RequestParam("goCustomerId") goCustomerId: String?,
+        @RequestParam("payAccountId") payAccountId: String?,
+    ): User {
         if (!goCustomerId.isNullOrBlank()) {
             return userRepository.getByGoCustomerId(goCustomerId).toUser()
         }

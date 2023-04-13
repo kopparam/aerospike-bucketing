@@ -25,6 +25,8 @@ dependencies {
     implementation("com.aerospike:aerospike-client:6.1.8")
     implementation("com.aerospike:aerospike-reactor-client:6.1.2")
     implementation("com.aerospike:java-object-mapper:2.2.0")
+    implementation("org.slf4j:slf4j-api:2.0.5")
+    implementation("ch.qos.logback:logback-classic:1.4.6")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("io.projectreactor:reactor-test")
 }

@@ -1,5 +1,7 @@
 package com.kkoppa.aerospikebucketing.user
 
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Controller
@@ -13,7 +15,10 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseBody
 import org.springframework.web.bind.annotation.RestControllerAdvice
+import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
+import reactor.kotlin.core.publisher.toMono
+import reactor.kotlin.core.publisher.whenComplete
 import java.util.*
 
 @Controller
@@ -22,18 +27,55 @@ class UserController(
     val userRepository: UserRepository,
     val externalIdRepository: ExternalIdRepository,
 ) {
+    val log = LoggerFactory.getLogger(this::class.java)
+
     @PostMapping
     @ResponseBody
     fun createUser(@RequestBody user: User): Mono<User> {
-        val userDao = mapUserToUserDAO(user)
-        val savedUser = userRepository.save(userDao)
-        externalIdRepository.saveAll<ExternalIdDataDao> {
-            user.externalIds?.map { ExternalIdDataDao(ExternalIdKey(it.id, it.type), userDao.id) }
+        if (user.externalIds == null) {
+            throw BadRequestException("At least one External id is required")
+        } else {
+            return Flux.concat(
+                user.externalIds.map { externalId ->
+                    externalIdRepository.existsById(
+                        ExternalIdKey(
+                            externalId = externalId.id,
+                            type = externalId.type,
+                        ),
+                    ).mapNotNull {
+                        if (it) {
+                            externalId
+                        } else {
+                            null
+                        }
+                    }
+                },
+            ).collectList()
+                .flatMap { existingExternalIds ->
+                    if (existingExternalIds.isNotEmpty()) {
+                        Mono.error(
+                            BadRequestException(
+                                "External id already exists ${
+                                    existingExternalIds.map { "${it?.type}:${it?.id}" }.joinToString(",")
+                                }",
+                            ),
+                        )
+                    } else {
+                        val userDao = mapUserToUserDAO(user)
+
+                        user.externalIds.map {
+                            ExternalIdDataDao(
+                                ExternalIdKey(it.id, it.type),
+                                userDao.id,
+                            )
+                        }.map { externalIdRepository.save(it) }.whenComplete()
+                            .then(userRepository.save(userDao).map { mapUserDaoToUser(it) })
+
+                    }
+                }
         }
 
-        return savedUser.map { userDataDao ->
-            mapUserDaoToUser(userDataDao)
-        }
+
     }
 
     private fun mapUserDaoToUser(userDataDao: UserDataDao) = User(
@@ -93,6 +135,26 @@ class UserController(
         return userRepository.findById(id).map { mapUserDaoToUser(it) }
     }
 
+    @PostMapping("/externalId")
+    @ResponseBody
+    fun saveExternalId(
+        @RequestBody externalId: ExternalIdDao,
+    ): Mono<ExternalIdDao> {
+        return externalIdRepository.save(
+            ExternalIdDataDao(
+                ExternalIdKey(
+                    externalId.externalId.id,
+                    externalId.externalId.type
+                ), externalId.id
+            )
+        ).map {
+            ExternalIdDao(
+                it.id,
+                ExternalId(it.externalIdKey.externalId, it.externalIdKey.type)
+            )
+        }
+    }
+
     @GetMapping("/externalId/{externalIdType}/{externalId}")
     @ResponseBody
     fun getUserByExternalId(
@@ -109,6 +171,11 @@ class UserController(
         val id: String? = null,
         val externalIds: List<ExternalId>? = null,
         val data: String?,
+    )
+
+    data class ExternalIdDao(
+        val id: String,
+        val externalId: ExternalId
     )
 
     data class ExternalId(

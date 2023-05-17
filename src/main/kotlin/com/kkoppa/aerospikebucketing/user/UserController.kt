@@ -1,6 +1,5 @@
 package com.kkoppa.aerospikebucketing.user
 
-import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -17,7 +16,6 @@ import org.springframework.web.bind.annotation.ResponseBody
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
-import reactor.kotlin.core.publisher.toMono
 import reactor.kotlin.core.publisher.whenComplete
 import java.util.*
 
@@ -70,12 +68,9 @@ class UserController(
                             )
                         }.map { externalIdRepository.save(it) }.whenComplete()
                             .then(userRepository.save(userDao).map { mapUserDaoToUser(it) })
-
                     }
                 }
         }
-
-
     }
 
     private fun mapUserDaoToUser(userDataDao: UserDataDao) = User(
@@ -144,13 +139,14 @@ class UserController(
             ExternalIdDataDao(
                 ExternalIdKey(
                     externalId.externalId.id,
-                    externalId.externalId.type
-                ), externalId.id
-            )
+                    externalId.externalId.type,
+                ),
+                externalId.id,
+            ),
         ).map {
             ExternalIdDao(
                 it.id,
-                ExternalId(it.externalIdKey.externalId, it.externalIdKey.type)
+                ExternalId(it.externalIdKey.externalId, it.externalIdKey.type),
             )
         }
     }
@@ -175,7 +171,7 @@ class UserController(
 
     data class ExternalIdDao(
         val id: String,
-        val externalId: ExternalId
+        val externalId: ExternalId,
     )
 
     data class ExternalId(

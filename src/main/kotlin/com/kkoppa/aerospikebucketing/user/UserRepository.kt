@@ -1,163 +1,64 @@
 package com.kkoppa.aerospikebucketing.user
 
-import com.aerospike.client.AerospikeException
-import com.aerospike.client.policy.Policy
-import com.aerospike.client.policy.RecordExistsAction
-import com.aerospike.client.policy.WritePolicy
-import com.aerospike.mapper.annotations.AerospikeBin
-import com.aerospike.mapper.annotations.AerospikeEmbed
-import com.aerospike.mapper.annotations.AerospikeKey
-import com.aerospike.mapper.annotations.AerospikeRecord
-import com.aerospike.mapper.annotations.ParamFrom
-import com.aerospike.mapper.tools.AeroMapper
-import com.kkoppa.aerospikebucketing.AerospikeConfig
-import org.slf4j.LoggerFactory
-import org.springframework.context.ApplicationContext
+import org.springframework.core.convert.converter.Converter
+import org.springframework.data.aerospike.mapping.Document
+import org.springframework.data.aerospike.mapping.Field
+import org.springframework.data.aerospike.repository.ReactiveAerospikeRepository
+import org.springframework.data.annotation.Id
+import org.springframework.data.convert.ReadingConverter
+import org.springframework.data.convert.WritingConverter
 import org.springframework.stereotype.Repository
-import java.util.*
+
+// Use this for composite key
+// https://github.com/aerospike-community/spring-data-aerospike-demo/blob/main/docs_processed/composite-primary-key.adoc
 
 @Repository
-class UserRepository(private val applicationContext: ApplicationContext, private val aeroMapper: AeroMapper) {
-    private val log = LoggerFactory.getLogger(UserRepository::class.java.name)
+interface UserRepository : ReactiveAerospikeRepository<UserDataDao, String>
 
-    fun save(user: User): UserDAO? {
-        val id = UUID.randomUUID().toString()
-        val userDAO = UserDAO(
-            id = id,
-            externalIds = user.externalIds?.map { externalId ->
-                ExternalIdDao(
-                    externalId = externalId.id,
-                    type = externalId.type.name,
-                )
-            }
-                ?.toList(),
-            data = user.data,
-        )
+@Repository
+interface ExternalIdRepository : ReactiveAerospikeRepository<ExternalIdDataDao, ExternalIdKey>
 
-        val writePolicy =
-            applicationContext.getBean(
-                AerospikeConfig.AEROSPIKE_DEFAULT_WRITE_POLICY_BEAN,
-                WritePolicy::class.java,
-            )
+@Document(collection = "user")
+data class UserDataDao(
+    @Id
+    val id: String,
 
-        writePolicy.recordExistsAction = RecordExistsAction.CREATE_ONLY
+    @Field
+    val data: String?,
 
-        val saved = mutableListOf<ExternalIdMapDao>()
-        try {
-            user.externalIds?.forEach {
-                val externalIdMapDao = ExternalIdMapDao(
-                    id = id,
-                    typeParam = it.type.name,
-                    externalIdParam = it.id,
-                    pk = "${it.type}:${it.id}",
-                )
-                try {
-                    aeroMapper.save(writePolicy, externalIdMapDao)
-                } catch (e: AerospikeException) {
-                    log.error("ExternalId: ${it.id} already exists", e)
-                    throw e
-                }
-                saved.add(externalIdMapDao)
-            }
-        } catch (e: AerospikeException) {
-            val deletePolicy =
-                applicationContext.getBean(
-                    AerospikeConfig.AEROSPIKE_DEFAULT_WRITE_POLICY_BEAN,
-                    WritePolicy::class.java,
-                )
-            deletePolicy.durableDelete = true
-            saved.forEach { aeroMapper.delete(it) }
-            throw BadRequestException(
-                "One of the externalIds already exists",
-                e,
-            )
-        }
-
-        aeroMapper.save(
-            writePolicy,
-            userDAO,
-        )
-
-        val readPolicy =
-            applicationContext.getBean(AerospikeConfig.AEROSPIKE_DEFAULT_READ_POLICY_BEAN, Policy::class.java)
-        return aeroMapper.read(readPolicy, UserDAO::class.java, id)
-    }
-
-    fun getByGoCustomerId(goCustomerId: String): UserDAO {
-        val readPolicy = applicationContext.getBean(
-            AerospikeConfig.AEROSPIKE_DEFAULT_READ_POLICY_BEAN,
-            Policy::class.java,
-        )
-
-        val externalIdMapDao = aeroMapper.read(
-            readPolicy,
-            ExternalIdMapDao::class.java,
-            "${ExternalIdType.GO_CUSTOMER_ID.name}:$goCustomerId",
-        ) ?: throw NotFoundException("User not found with goCustomerId: $goCustomerId")
-
-        return aeroMapper.read(readPolicy, UserDAO::class.java, externalIdMapDao.id)
-    }
-
-    fun getByPayAccountId(payAccountId: String): UserDAO {
-        val readPolicy = applicationContext.getBean(
-            AerospikeConfig.AEROSPIKE_DEFAULT_READ_POLICY_BEAN,
-            Policy::class.java,
-        )
-
-        val externalIdMapDao = aeroMapper.read(
-            readPolicy,
-            ExternalIdMapDao::class.java,
-            "${ExternalIdType.PAY_ACCOUNT_ID.name}:$payAccountId",
-        ) ?: throw NotFoundException("User not found with payAccountId: $payAccountId")
-
-        return aeroMapper.read(readPolicy, UserDAO::class.java, externalIdMapDao.id)
-    }
-
-    fun getById(id: String): UserDAO {
-        val readPolicy =
-            applicationContext.getBean(AerospikeConfig.AEROSPIKE_DEFAULT_READ_POLICY_BEAN, Policy::class.java)
-
-        return aeroMapper.read(readPolicy, UserDAO::class.java, id)
-            ?: throw NotFoundException("User not found with id: $id")
-    }
-}
-
-@AerospikeRecord(namespace = "test", set = "user", sendKey = true)
-data class UserDAO(
-    @AerospikeKey val id: String = "",
-    @ParamFrom("externalIds")
-    @AerospikeEmbed(type = AerospikeEmbed.EmbedType.LIST)
-    val externalIds: List<ExternalIdDao>? = null,
-    @ParamFrom("data") val data: String? = "",
-) {
-    fun toUser(): User {
-        return User(
-            id = id,
-            externalIds = externalIds?.map { externalId ->
-                ExternalId(
-                    id = externalId.externalId!!,
-                    type = ExternalIdType.valueOf(externalId.type!!),
-                )
-            }
-                ?.toList(),
-            data = data,
-        )
-    }
-}
-
-open class ExternalIdDao(
-    @ParamFrom("externalId") val externalId: String? = "",
-    @ParamFrom("type") val type: String? = "",
+    @Field("externalIds")
+    val externalIds: List<ExternalIdKey>,
 )
 
-@AerospikeRecord(namespace = "test", set = "externalIds", sendKey = true)
-open class ExternalIdMapDao(
-    @AerospikeKey val pk: String = "",
-    @ParamFrom("id") val id: String = "",
-    @ParamFrom("externalId")
-    @AerospikeBin(name = "externalId")
-    val externalIdParam: String = "",
-    @ParamFrom("type")
-    @AerospikeBin(name = "type")
-    val typeParam: String = "",
-) : ExternalIdDao(externalIdParam, typeParam)
+@Document(collection = "externalIds")
+data class ExternalIdDataDao(
+    @Id
+    val externalIdKey: ExternalIdKey,
+
+    @Field
+    val id: String,
+)
+
+data class ExternalIdKey(
+    val externalId: String,
+    val type: UserController.ExternalIdType,
+) {
+    @WritingConverter
+    enum class ExternalIdKeyToStringConverter : Converter<ExternalIdKey, String> {
+        INSTANCE, ;
+
+        override fun convert(source: ExternalIdKey): String {
+            return "${source.type}:${source.externalId}"
+        }
+    }
+
+    @ReadingConverter
+    enum class StringToExternalIdKeyConverter : Converter<String, ExternalIdKey> {
+        INSTANCE, ;
+
+        override fun convert(source: String): ExternalIdKey {
+            val parts = source.split(":")
+            return ExternalIdKey(externalId = parts[1], type = UserController.ExternalIdType.valueOf(parts[0]))
+        }
+    }
+}

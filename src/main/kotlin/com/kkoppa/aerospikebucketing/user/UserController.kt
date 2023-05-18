@@ -16,7 +16,6 @@ import org.springframework.web.bind.annotation.ResponseBody
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
-import reactor.kotlin.core.publisher.whenComplete
 import java.util.*
 
 @Controller
@@ -61,13 +60,17 @@ class UserController(
                     } else {
                         val userDao = mapUserToUserDAO(user)
 
-                        user.externalIds.map {
-                            ExternalIdDataDao(
-                                ExternalIdKey(it.id, it.type),
-                                userDao.id,
-                            )
-                        }.map { externalIdRepository.save(it) }.whenComplete()
-                            .then(userRepository.save(userDao).map { mapUserDaoToUser(it) })
+                        Flux.combineLatest(
+                            Flux.merge(
+                                user.externalIds.map {
+                                    ExternalIdDataDao(
+                                        ExternalIdKey(it.id, it.type),
+                                        userDao.id,
+                                    )
+                                }.map { externalIdRepository.save(it) },
+                            ),
+                            userRepository.save(userDao).map { mapUserDaoToUser(it) },
+                        ) { _, user -> user }.last()
                     }
                 }
         }

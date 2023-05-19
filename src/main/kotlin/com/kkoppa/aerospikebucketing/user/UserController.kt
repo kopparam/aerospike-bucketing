@@ -7,6 +7,7 @@ import org.springframework.stereotype.Controller
 import org.springframework.web.ErrorResponse
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -24,7 +25,7 @@ class UserController(
     val userRepository: UserRepository,
     val externalIdRepository: ExternalIdRepository,
 ) {
-    val log = LoggerFactory.getLogger(this::class.java)
+    val log = LoggerFactory.getLogger(UserController::class.java)
 
     @PostMapping
     @ResponseBody
@@ -39,13 +40,7 @@ class UserController(
                             externalId = externalId.id,
                             type = externalId.type,
                         ),
-                    ).mapNotNull {
-                        if (it) {
-                            externalId
-                        } else {
-                            null
-                        }
-                    }
+                    ).mapNotNull { if (it) externalId else null }
                 },
             ).collectList()
                 .flatMap { existingExternalIds ->
@@ -53,7 +48,7 @@ class UserController(
                         Mono.error(
                             BadRequestException(
                                 "External id already exists ${
-                                    existingExternalIds.map { "${it?.type}:${it?.id}" }.joinToString(",")
+                                    existingExternalIds.joinToString(",") { "${it?.type}:${it?.id}" }
                                 }",
                             ),
                         )
